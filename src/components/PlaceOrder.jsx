@@ -1,41 +1,74 @@
-// src/components/PlaceOrder.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 const PlaceOrder = () => {
-    const [products, setProducts] = useState([]);
-    const [order, setOrder] = useState({ customerName: '', orderItems: [] });
+    const [order, setOrder] = useState({ customerName: '', orderItems: [], orderDate: '', totalCost: 0, orderNumber: '' });
+    const [selectedProducts, setSelectedProducts] = useState([]);
+    const [totalPrice, setTotalPrice] = useState(0);
     const navigate = useNavigate();
+    const serverURL = process.env.REACT_APP_API_URL;
 
     useEffect(() => {
-        axios.get('/api/products')
-            .then(response => {
-                setProducts(response.data);
-            })
-            .catch(error => {
-                console.error('There was an error fetching the products!', error);
-            });
-    }, []);
+        const storedProducts = localStorage.getItem('selectedProducts');
+        if (storedProducts) {
+            const parsedProducts = JSON.parse(storedProducts);
+            const fetchProductDetails = async () => {
+                const promises = parsedProducts.map(async product => {
+                    const response = await axios.get(`${serverURL}/getProduct`, {
+                        params: { _id: product._id }
+                    });
+                    return { ...response.data[0], quantity: product.quantity };
+                });
+                const productDetails = await Promise.all(promises);
+                setSelectedProducts(productDetails);
+            };
+            fetchProductDetails();
+        }
+    }, [serverURL]);
+
+    useEffect(() => {
+        const updatedOrderItems = selectedProducts.map(product => ({
+            productId: product._id,
+            name: product.name,
+            category: product.category,
+            price: product.price,
+            quantity: product.quantity
+        }));
+
+        setOrder(prevOrder => ({
+            ...prevOrder,
+            orderItems: updatedOrderItems
+        }));
+
+        const totalPrice = selectedProducts.reduce((total, product) => {
+            return total + (product.price * product.quantity);
+        }, 0);
+        setTotalPrice(totalPrice);
+    }, [selectedProducts]);
 
     const handleChange = (e) => {
         setOrder({ ...order, [e.target.name]: e.target.value });
     };
 
-    const handleProductChange = (index, e) => {
-        const newOrderItems = [...order.orderItems];
-        newOrderItems[index][e.target.name] = e.target.value;
-        setOrder({ ...order, orderItems: newOrderItems });
-    };
-
-    const addOrderItem = () => {
-        setOrder({ ...order, orderItems: [...order.orderItems, { productId: '', quantity: 0 }] });
+    const generateOrderNumber = () => {
+        return `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        axios.post('/api/orders', order)
-            .then(() => {
+
+        const currentOrder = {
+            ...order,
+            orderDate: new Date().toISOString(),
+            totalCost: totalPrice,
+            orderNumber: generateOrderNumber()
+        };
+
+        axios.post(`${serverURL}/createOrder`, currentOrder)
+            .then(response => {
+                console.log('Order placed successfully!', response.data);
+                localStorage.removeItem('selectedProducts');
                 navigate('/orders');
             })
             .catch(error => {
@@ -50,20 +83,25 @@ const PlaceOrder = () => {
                 <label className="block mb-2">Customer Name:</label>
                 <input type="text" name="customerName" value={order.customerName} onChange={handleChange} className="w-full p-2 border rounded" />
             </div>
-            {order.orderItems.map((item, index) => (
-                <div key={index} className="mb-4">
-                    <label className="block mb-2">Product:</label>
-                    <select name="productId" value={item.productId} onChange={(e) => handleProductChange(index, e)} className="w-full p-2 border rounded">
-                        <option value="">Select a product</option>
-                        {products.map(product => (
-                            <option key={product._id} value={product._id}>{product.name}</option>
-                        ))}
-                    </select>
-                    <label className="block mb-2">Quantity:</label>
-                    <input type="number" name="quantity" value={item.quantity} onChange={(e) => handleProductChange(index, e)} className="w-full p-2 border rounded" />
-                </div>
-            ))}
-            <button type="button" onClick={addOrderItem} className="w-full p-2 bg-blue-500 text-white rounded mb-4">Add Item</button>
+
+            <div className="mb-4">
+                <h3 className="text-xl font-bold mb-2">Selected Products</h3>
+                <ul className="space-y-2">
+                    {selectedProducts.map(product => (
+                        <li key={product._id} className="p-4 border rounded shadow-sm">
+                            <p className="font-semibold">{product.name}</p>
+                            <p>Category: {product.category}</p>
+                            <p>Price: ${product.price}</p>
+                            <p>Quantity: {product.quantity}</p>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            <div className="mb-4">
+                <p className="font-bold">Total Price: ${totalPrice.toFixed(2)}</p>
+            </div>
+
             <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded">Place Order</button>
         </form>
     );

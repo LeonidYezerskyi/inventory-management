@@ -83,11 +83,13 @@ const AddEditProduct = () => {
             </div>
             <div className="mb-4">
                 <label className="block mb-2">Price:</label>
-                <input type="number" name="price" value={product.price} onChange={handleChange} className="w-full p-2 border rounded" />
+                <input min="0"
+                    type="number" name="price" value={product.price} onChange={handleChange} className="w-full p-2 border rounded" />
             </div>
             <div className="mb-4">
                 <label className="block mb-2">Quantity:</label>
-                <input type="number" name="quantity" value={product.quantity} onChange={handleChange} className="w-full p-2 border rounded" />
+                <input min="0"
+                    type="number" name="quantity" value={product.quantity} onChange={handleChange} className="w-full p-2 border rounded" />
             </div>
             <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded">Save</button>
         </form>
